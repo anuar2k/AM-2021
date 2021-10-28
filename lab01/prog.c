@@ -30,34 +30,46 @@ void print_matrix(matrix_t *matrix) {
     }
 }
 
-int matmul(matrix_t *a, matrix_t *b, matrix_t **out_result) {
-    if (a->n != b->m) {
-        return -EINVAL;
-    }
-
-    size_t m = a->m;
-    size_t n = b->n;
-    size_t k = a->n;
-
-    matrix_t *result = make_matrix(m, n);
-    if (!result) {
-        return -ENOMEM;
-    }
-
-    result->m = m;
-    result->n = n;
-
-    for (size_t i = 0; i < m; i++) {
-        for (size_t j = 0; j < n; j++) {
-            for (size_t p = 0; p < k; p++) {
-                CELL(result, i, j) += CELL(a, i, p) * CELL(b, p, j);
-            }
-        }
-    }
-
-    *out_result = result;
-    return 0;
+#define matmul(lp0, lp1, lp2) \
+int matmul_##lp0##lp1##lp2(matrix_t *a, matrix_t *b, matrix_t **out_result) { \
+    if (a->n != b->m) { \
+        return -EINVAL; \
+    } \
+ \
+    size_t m = a->m; \
+    size_t n = b->n; \
+    size_t k = a->n; \
+ \
+    matrix_t *result = make_matrix(m, n); \
+    if (!result) { \
+        return -ENOMEM; \
+    } \
+ \
+    result->m = m; \
+    result->n = n; \
+ \
+    size_t i_end = m; \
+    size_t j_end = n; \
+    size_t p_end = k; \
+ \
+    for (size_t lp0 = 0; lp0 < lp0##_end; lp0++) { \
+        for (size_t lp1 = 0; lp1 < lp1##_end; lp1++) { \
+            for (size_t lp2 = 0; lp2 < lp2##_end; lp2++) { \
+                CELL(result, i, j) += CELL(a, i, p) * CELL(b, p, j); \
+            } \
+        } \
+    } \
+ \
+    *out_result = result; \
+    return 0; \
 }
+
+matmul(i, j, p)
+matmul(i, p, j)
+matmul(j, i, p)
+matmul(j, p, i)
+matmul(p, i, j)
+matmul(p, j, i)
 
 int main(int argc, char **argv) {
     matrix_t *a = make_matrix(2, 4);
@@ -76,10 +88,54 @@ int main(int argc, char **argv) {
     printf("\n");
     print_matrix(b);
     printf("\n");
-    matrix_t *c;
-    matmul(a, b, &c);
-    print_matrix(c);
+    {
+        matrix_t *c;
+        matmul_ijp(a, b, &c);
+        print_matrix(c);
+        printf("\n");
+        free(c);
+    }
+
+    {
+        matrix_t *c;
+        matmul_ipj(a, b, &c);
+        print_matrix(c);
+        printf("\n");
+        free(c);
+    }
+
+    {
+        matrix_t *c;
+        matmul_jip(a, b, &c);
+        print_matrix(c);
+        printf("\n");
+        free(c);
+    }
+
+    {
+        matrix_t *c;
+        matmul_jpi(a, b, &c);
+        print_matrix(c);
+        printf("\n");
+        free(c);
+    }
+
+    {
+        matrix_t *c;
+        matmul_pij(a, b, &c);
+        print_matrix(c);
+        printf("\n");
+        free(c);
+    }
+
+    {
+        matrix_t *c;
+        matmul_pji(a, b, &c);
+        print_matrix(c);
+        printf("\n");
+        free(c);
+    }
+
     free(a);
     free(b);
-    free(c);
 }
