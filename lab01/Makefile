@@ -3,7 +3,7 @@ CFLAGS := -O3 -Wall -march=native -fno-loop-interchange
 
 .PHONY: clean
 
-prog: prog.c
+prog.out: prog.c
 	$(CC) $(CFLAGS) prog.c -o prog.out
 
 clean:
