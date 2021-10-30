@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+
+import numpy as np
+from subprocess import run
+from tempfile import NamedTemporaryFile as tmp
+
+def write_matrix(matrix, file):
+    rows, cols = np.shape(matrix)
+    file.write(f"{rows}x{cols}\n")
+    np.savetxt(file, matrix, fmt="%f", delimiter=",")
+    file.flush()
+
+def read_matrix(file):
+    rows, cols = (int(x) for x in file.readline().split("x"))
+    res = np.loadtxt(file, delimiter=",")
+
+    assert rows, cols == np.shape(res)
+    return res
+
+def run_matmul(a_file, b_file, out_file, order, block_size):
+    command = [
+        "./prog.out",
+        a_file.name, 
+        b_file.name,
+        out_file.name,
+        order, 
+        str(block_size)
+    ]
+
+    proc = run(command, capture_output=True, encoding="utf-8")
+    proc.check_returncode()
+
+    clk_per_sec, clk = (int(x) for x in proc.stdout.split("\n")[0:2])
+    res = read_matrix(out_file)
+    
+    return clk / clk_per_sec, res
+
+def calc(a, b, order, block_size=0):
+    with tmp(mode="w+") as a_file, tmp(mode="w+") as b_file, tmp(mode="w+") as out_file:
+        write_matrix(a, a_file)
+        write_matrix(b, b_file)
+        return run_matmul(a_file, b_file, out_file, order, block_size)
+        
+if __name__ == "__main__":
+    a = np.array([
+        [0, 1, 2, 3, 4, 5, 6],
+        [1, 2, 3, 4, 5, 6, 7],
+        [0, 5, 2, 6, 7, 2, 3]
+    ])
+
+    b = np.array([
+        [2, 1, 3, 7],
+        [4, 2, 0, 6],
+        [5, 5, 3, 3],
+        [1, 3, 3, 7],
+        [8, 0, 0, 0],
+        [9, 9, 7, 7],
+        [1, 2, 3, 4]
+    ])
+
+    expected = a @ b
+    time1, result1 = calc(a, b, "pij")
+    time2, result2 = calc(a, b, "ipj", 2)
+    print(time1, result1)
+    print(time2, result2)
+    print(np.array_equal(expected, result1), np.array_equal(expected, result2))

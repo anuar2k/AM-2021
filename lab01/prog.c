@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#define STR(x) #x
+#define EXPAND(x) STR(x)
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define CELL(mat, row, col) ((mat)->data[(row) * (mat)->n + (col)])
@@ -104,6 +108,8 @@ void write_matrix(matrix_t *matrix, FILE *file) {
         size_t j_end = n;                                                               \
         size_t p_end = k;                                                               \
                                                                                         \
+        clock_t measurement_begin = clock();                                            \
+                                                                                        \
         for (size_t lp0 = 0; lp0 < lp0##_end; lp0++) {                                  \
             for (size_t lp1 = 0; lp1 < lp1##_end; lp1++) {                              \
                 for (size_t lp2 = 0; lp2 < lp2##_end; lp2++) {                          \
@@ -111,6 +117,8 @@ void write_matrix(matrix_t *matrix, FILE *file) {
                 }                                                                       \
             }                                                                           \
         }                                                                               \
+                                                                                        \
+        printf("%ld\n", clock() - measurement_begin);                                   \
                                                                                         \
         *out_result = result;                                                           \
         return 0;                                                                       \
@@ -134,6 +142,8 @@ void write_matrix(matrix_t *matrix, FILE *file) {
         result->m = m;                                                                                 \
         result->n = n;                                                                                 \
                                                                                                        \
+        clock_t measurement_begin = clock();                                                           \
+                                                                                                       \
         for (size_t ii = 0; ii < m; ii += b_size) {                                                    \
             size_t ib_size = MIN(m - ii, b_size);                                                      \
             for (size_t jj = 0; jj < n; jj += b_size) {                                                \
@@ -150,6 +160,8 @@ void write_matrix(matrix_t *matrix, FILE *file) {
                 }                                                                                      \
             }                                                                                          \
         }                                                                                              \
+                                                                                                       \
+        printf("%ld\n", clock() - measurement_begin);                                                  \
                                                                                                        \
         *out_result = result;                                                                          \
         return 0;                                                                                      \
@@ -175,9 +187,9 @@ FOREACH_ORDER(DEFINE_PLAIN_MATMUL)
 FOREACH_ORDER(DEFINE_BLOCK_MATMUL)
 FOREACH_ORDER(DEFINE_MATMUL)
 
-// ./a.out a_matrix b_matrix out_matrix order [block_size]
-// ./a.out m1.csv m2.csv /dev/null jip
-// ./a.out m1.csv m2.csv m3.csv    pij 2
+// ./prog.out a_matrix b_matrix out_matrix order [block_size]
+// ./prog.out m1.csv   m2.csv   /dev/null  jip
+// ./prog.out m1.csv   m2.csv   m3.csv     pij   2
 int main(int argc, char **argv) {
     matrix_t *a = NULL;
     matrix_t *b = NULL;
@@ -195,21 +207,15 @@ int main(int argc, char **argv) {
     const char *c_path = argv[3];
     const char *order = argv[4];
 
-    if (argc == 6) {
-        if (sscanf(argv[5], "%zu", &b_size) != 1) {
-            goto cleanup;
-        }
-    }
-
-    out = fopen(c_path, "w");
-    if (!out) {
-        goto cleanup;
-    }
-
     if (read_matrix(a_path, &a)) {
         goto cleanup;
     }
     if (read_matrix(b_path, &b)) {
+        goto cleanup;
+    }
+
+    out = fopen(c_path, "w");
+    if (!out) {
         goto cleanup;
     }
 
@@ -222,7 +228,19 @@ int main(int argc, char **argv) {
 
 #undef SELECT_MATMUL
 
-    if (!matmul || matmul(a, b, &c, b_size)) {
+    if (!matmul) {
+        goto cleanup;
+    }
+
+    if (argc == 6) {
+        if (sscanf(argv[5], "%zu", &b_size) != 1) {
+            goto cleanup;
+        }
+    }
+
+    printf("%ld\n", CLOCKS_PER_SEC);
+
+    if (matmul(a, b, &c, b_size)) {
         goto cleanup;
     }
     write_matrix(c, out);
