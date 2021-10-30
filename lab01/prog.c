@@ -5,9 +5,6 @@
 #include <string.h>
 #include <time.h>
 
-#define STR(x) #x
-#define EXPAND(x) STR(x)
-
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define CELL(mat, row, col) ((mat)->data[(row) * (mat)->n + (col)])
 #define CSV_DELIM ","
