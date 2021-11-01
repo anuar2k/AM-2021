@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import numpy as np
+import os
 from subprocess import check_output
 from tempfile import NamedTemporaryFile as tmp
 
@@ -19,12 +20,12 @@ def read_matrix(file):
     assert rows, cols == np.shape(res)
     return res
 
-def run_matmul(a_file, b_file, out_file, order, block_size):
+def run_matmul(a_name, b_name, out_name, order, block_size):
     command = [
         "./prog.out",
-        a_file.name, 
-        b_file.name,
-        out_file.name,
+        a_name, 
+        b_name,
+        out_name,
         order, 
         str(block_size)
     ]
@@ -32,15 +33,24 @@ def run_matmul(a_file, b_file, out_file, order, block_size):
     output = check_output(command, encoding="utf-8")
 
     clk_per_sec, clk = (int(x) for x in output.split("\n")[:2])
-    res = read_matrix(out_file)
+    with open(out_name) as out_file:
+        res = read_matrix(out_file)
     
     return clk / clk_per_sec, res
 
 def calc(a, b, order, block_size=0):
-    with tmp(mode="w+") as a_file, tmp(mode="w+") as b_file, tmp(mode="w+") as out_file:
+    with tmp(mode="w+", delete=False) as a_file, tmp(mode="w+", delete=False) as b_file, tmp(mode="w+", delete=False) as out_file:
         write_matrix(a, a_file)
         write_matrix(b, b_file)
-        return run_matmul(a_file, b_file, out_file, order, block_size)
+        a_name = a_file.name
+        b_name = b_file.name
+        out_name = out_file.name
+    
+    res = run_matmul(a_name, b_name, out_name, order, block_size)
+    os.remove(a_name)
+    os.remove(b_name)
+    os.remove(out_name)
+    return res
         
 if __name__ == "__main__":
     a = np.array([
