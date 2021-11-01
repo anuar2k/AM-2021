@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from subprocess import run
+from subprocess import check_output
 from tempfile import NamedTemporaryFile as tmp
 
 def write_matrix(matrix, file):
@@ -27,10 +27,9 @@ def run_matmul(a_file, b_file, out_file, order, block_size):
         str(block_size)
     ]
 
-    proc = run(command, capture_output=True, encoding="utf-8")
-    proc.check_returncode()
+    output = check_output(command, encoding="utf-8")
 
-    clk_per_sec, clk = (int(x) for x in proc.stdout.split("\n")[0:2])
+    clk_per_sec, clk = (int(x) for x in output.split("\n")[:2])
     res = read_matrix(out_file)
     
     return clk / clk_per_sec, res
