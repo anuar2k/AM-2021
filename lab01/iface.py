@@ -4,15 +4,17 @@ import numpy as np
 from subprocess import check_output
 from tempfile import NamedTemporaryFile as tmp
 
+CSV_DELIM = ","
+
 def write_matrix(matrix, file):
     rows, cols = np.shape(matrix)
     file.write(f"{rows}x{cols}\n")
-    np.savetxt(file, matrix, fmt="%f", delimiter=",")
+    np.savetxt(file, matrix, fmt="%f", delimiter=CSV_DELIM)
     file.flush()
 
 def read_matrix(file):
     rows, cols = (int(x) for x in file.readline().split("x"))
-    res = np.loadtxt(file, delimiter=",")
+    res = np.loadtxt(file, delimiter=CSV_DELIM)
 
     assert rows, cols == np.shape(res)
     return res
