@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 
+import sys
+# sys.path.append('./pyiga')
+
 
 def cholesky(A, r=0):
     n = len(A)
@@ -30,7 +33,7 @@ def main():
 
     B = np.copy(A)
 
-    L = cholesky(B, 2)
+    L = cholesky(B, 3)
 
     print(np.round(L, 2))
     # print(np.round(A, 2))
