@@ -27,7 +27,8 @@ def run_matmul(a_name, b_name, out_name, order, block_size):
         b_name,
         out_name,
         order, 
-        str(block_size)
+        str(block_size),
+        "4"
     ]
 
     output = check_output(command, encoding="utf-8")

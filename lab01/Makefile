@@ -1,5 +1,5 @@
 CC     := gcc
-CFLAGS := -O3 -Wall -march=native -fno-loop-interchange
+CFLAGS := -pthread -O3 -Wall -march=native -fno-loop-interchange
 
 .PHONY: clean
 
