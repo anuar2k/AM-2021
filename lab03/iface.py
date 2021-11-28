@@ -7,11 +7,13 @@ from tempfile import NamedTemporaryFile as tmp
 
 CSV_DELIM = ","
 
+
 def write_matrix(matrix, file):
     rows, cols = np.shape(matrix)
     file.write(f"{rows}x{cols}\n")
     np.savetxt(file, matrix, fmt="%f", delimiter=CSV_DELIM)
     file.flush()
+
 
 def read_matrix(file):
     rows, cols = (int(x) for x in file.readline().split("x"))
@@ -20,10 +22,11 @@ def read_matrix(file):
     assert rows, cols == np.shape(res)
     return res
 
+
 def run_matmul(a_name, b_name, out_name, order):
     command = [
         "./prog.out",
-        a_name, 
+        a_name,
         b_name,
         out_name,
         order
@@ -34,8 +37,9 @@ def run_matmul(a_name, b_name, out_name, order):
     clk_per_sec, clk_prep, clk_calc = (int(x) for x in output.split("\n")[:3])
     with open(out_name) as out_file:
         res = read_matrix(out_file)
-    
+
     return clk_prep / clk_per_sec, clk_calc / clk_per_sec, res
+
 
 def calc(a, b, order):
     with tmp(mode="w+", delete=False) as a_file, tmp(mode="w+", delete=False) as b_file, tmp(mode="w+", delete=False) as out_file:
@@ -44,13 +48,14 @@ def calc(a, b, order):
         a_name = a_file.name
         b_name = b_file.name
         out_name = out_file.name
-    
+
     res = run_matmul(a_name, b_name, out_name, order)
     os.remove(a_name)
     os.remove(b_name)
     os.remove(out_name)
     return res
-        
+
+
 if __name__ == "__main__":
     a = np.array([
         [0, 1, 2, 3, 4, 5, 6],
