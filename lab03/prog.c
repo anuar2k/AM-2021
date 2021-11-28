@@ -161,14 +161,12 @@ int dense_dense_matmul(dense_matrix_t *a, dense_matrix_t *b, dense_matrix_t **ou
 }
 
 int coord_dense_matmul(dense_matrix_t *a, dense_matrix_t *b, dense_matrix_t **out_result) {
-    int ret;
     if (a->n != b->m) {
         return -EINVAL;
     }
 
     size_t m = a->m;
     size_t n = b->n;
-    size_t k = a->n;
 
     dense_matrix_t *result = make_dense_matrix(m, n);
 
