@@ -64,7 +64,7 @@ row_maj_coord_matrix_t *make_row_maj_coord_matrix(size_t m, size_t n, size_t max
 
     result->m = m;
     result->n = n;
-    result->len = max_len;
+    result->len = 0;
     return result;
 }
 
@@ -227,6 +227,8 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
         return -ENOMEM;
     }
 
+    result->m = input->m;
+    result->n = input->n;
     buf_prev->len = 0;
     buf_curr->len = 0;
 
@@ -275,8 +277,6 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
             result->values[result->len++] = buf_prev->values[pivot_cell_idx++];
         }
 
-        // TODO: swap handling
-
         buf_curr->len = 0;
         size_t prev_row = -1;
         size_t result_pivot_idx;
@@ -285,11 +285,17 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
         for (size_t i = 0; i < buf_prev->len; i++) {
             row_maj_coord_cell_t *buf_cell = &buf_prev->values[i];
 
+            if (pivot_row == buf_cell->row) {
+                continue;
+            }
             if (prev_row != buf_cell->row) {
                 if (buf_cell->col == col) {
-                    result_pivot_idx = result_pivot_start;
+                    result_pivot_idx = result_pivot_start + 1;
                     prev_row = buf_cell->row;
                     coeff = buf_cell->value / result->values[result_pivot_start].value;
+                }
+                else {
+                    buf_curr->values[buf_curr->len++] = *buf_cell;
                 }
             }
             else {
@@ -304,11 +310,14 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
                 }
                 if (result_pivot_idx < result->len && result->values[result_pivot_idx].col == buf_cell->col) {
                     row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx++];
-                    buf_curr->values[buf_curr->len++] = (row_maj_coord_cell_t) {
-                        .row = buf_cell->row,
-                        .col = buf_cell->col,
-                        .value = buf_cell->value - pivot_cell->value * coeff
-                    };
+                    float result = buf_cell->value - pivot_cell->value * coeff;
+                    if (result != .0f) {
+                        buf_curr->values[buf_curr->len++] = (row_maj_coord_cell_t) {
+                            .row = buf_cell->row,
+                            .col = buf_cell->col,
+                            .value = result
+                        };
+                    }
                 }
                 else {
                     buf_curr->values[buf_curr->len++] = *buf_cell;
@@ -323,6 +332,8 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
         buf_prev = buf_curr;
         buf_curr = tmp;
     }
+
+    *out_result = result;
 
     return 0;
 }
