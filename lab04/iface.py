@@ -23,59 +23,45 @@ def read_matrix(file):
     return res
 
 
-def run_matmul(a_name, b_name, out_name, order):
+def run_alg(input_name, out_name, alg):
     command = [
         "./prog.out",
-        a_name,
-        b_name,
+        input_name,
         out_name,
-        order
+        alg
     ]
 
     output = check_output(command, encoding="utf-8")
 
-    clk_per_sec, clk_prep, clk_calc = (int(x) for x in output.split("\n")[:3])
+    clk_per_sec, clk_calc = (int(x) for x in output.split("\n")[:2])
     with open(out_name) as out_file:
         res = read_matrix(out_file)
 
-    return clk_prep / clk_per_sec, clk_calc / clk_per_sec, res
+    return clk_calc / clk_per_sec, res
 
 
-def calc(a, b, order):
-    with tmp(mode="w+", delete=False) as a_file, tmp(mode="w+", delete=False) as b_file, tmp(mode="w+", delete=False) as out_file:
-        write_matrix(a, a_file)
-        write_matrix(b, b_file)
-        a_name = a_file.name
-        b_name = b_file.name
+def calc(input, alg):
+    with tmp(mode="w+", delete=False) as input_file, tmp(mode="w+", delete=False) as out_file:
+        write_matrix(input, input_file)
+        input_name = input_file.name
         out_name = out_file.name
 
-    res = run_matmul(a_name, b_name, out_name, order)
-    os.remove(a_name)
-    os.remove(b_name)
+    res = run_alg(input_name, out_name, alg)
+    os.remove(input_name)
     os.remove(out_name)
     return res
 
 
 if __name__ == "__main__":
-    a = np.array([
-        [0, 1, 2, 3, 4, 5, 6],
-        [1, 2, 3, 4, 5, 6, 7],
-        [0, 5, 2, 6, 7, 2, 3]
+    input = np.array([
+        [1, -1, 2, 2],
+        [2, -2, 1, 0],
+        [-1, 2, 1, -2],
+        [2, -1, 4, 0]
     ])
 
-    b = np.array([
-        [2, 1, 3, 7],
-        [4, 2, 0, 6],
-        [5, 5, 3, 3],
-        [1, 3, 3, 7],
-        [8, 0, 0, 0],
-        [9, 9, 7, 7],
-        [1, 2, 3, 4]
-    ])
-
-    expected = a @ b
-    time1_prep, time1_calc, result1 = calc(a, b, "dense")
-    time2_prep, time2_calc, result2 = calc(a, b, "coord")
-    print(time1_prep, time1_calc, result1)
-    print(time2_prep, time2_calc, result2)
-    print(np.array_equal(expected, result1), np.array_equal(expected, result2))
+    time1, result1 = calc(input, "dense")
+    time2, result2 = calc(input, "coord")
+    print(time1, result1)
+    print(time2, result2)
+    print(np.array_equal(result1, result2))

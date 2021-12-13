@@ -342,7 +342,6 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
                     buf_curr->values[buf_curr->len++] = *buf_cell;
                 }
             } else {
-
                 // there's no cells to subtract from: add cells from pivot, advance it until buf_cell->col matches
                 while (result_pivot_idx < result->len && result->values[result_pivot_idx].col < buf_cell->col) {
                     row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx];
@@ -356,7 +355,6 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
 
                 if (result_pivot_idx < result->len && result->values[result_pivot_idx].col == buf_cell->col) {
                     // if row and col numbers match, do the subtraction
-
                     row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx++];
                     float result = buf_cell->value - pivot_cell->value * coeff;
                     if (result != .0f) {
