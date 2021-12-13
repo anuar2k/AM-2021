@@ -164,6 +164,7 @@ int dense_gauss(const dense_matrix_t *input, dense_matrix_t **out_result) {
     while (row < result->m && col < result->n) {
         size_t pivot_row = row;
 
+        // find row with earliest nonzero cell
         while (CELL(result, pivot_row, col) == .0f) {
             if (++pivot_row == result->m) {
                 pivot_row = row;
@@ -174,6 +175,7 @@ int dense_gauss(const dense_matrix_t *input, dense_matrix_t **out_result) {
             }
         }
 
+        // do a swap if neccessary
         if (pivot_row != row) {
             for (size_t swap_col = col; swap_col < result->n; swap_col++) {
                 float tmp = CELL(result, row, swap_col);
@@ -182,6 +184,7 @@ int dense_gauss(const dense_matrix_t *input, dense_matrix_t **out_result) {
             }
         }
 
+        // subtract pivot row scaled by coeff
         float nonzero = CELL(result, row, col);
         for (size_t clear_row = row + 1; clear_row < result->m; clear_row++) {
             if (CELL(result, clear_row, col) != .0f) {
@@ -197,9 +200,8 @@ int dense_gauss(const dense_matrix_t *input, dense_matrix_t **out_result) {
         row++;
         col++;
     }
-    out:
+out:
 
-    printf("0\n");
     printf("%ld\n", clock() - measurement_begin);
 
     *out_result = result;
@@ -216,14 +218,19 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
     size_t row_count = max_row - min_row + 1;
     size_t max_nonzero_cell_count = (min_row + max_row) * row_count / 2;
 
+    // result, in a given moment, will contain only rows up to n-th row
     row_maj_coord_matrix_t *result = make_row_maj_coord_matrix(input->m, input->n, max_nonzero_cell_count);
+    // every buf designates a rectangle left to eliminate
     row_maj_coord_buf_t *buf_prev = make_row_maj_coord_buf(input->m * input->n);
     row_maj_coord_buf_t *buf_curr = make_row_maj_coord_buf(input->m * input->n);
 
-    if (!result || !buf_prev || !buf_curr) {
+    size_t *iter_order = malloc(input->m * input->n * sizeof(*iter_order));
+
+    if (!result || !buf_prev || !buf_curr || !iter_order) {
         free(result);
         free(buf_prev);
         free(buf_curr);
+        free(iter_order);
         return -ENOMEM;
     }
 
@@ -232,12 +239,15 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
     buf_prev->len = 0;
     buf_curr->len = 0;
 
+    clock_t measurement_begin = clock();
+
+    // initialize "previous iteration" buffer with input
     for (size_t i = 0; i < input->m; i++) {
         for (size_t j = 0; j < input->n; j++) {
             if (CELL(input, i, j) != .0f) {
                 buf_prev->values[buf_prev->len++] = (row_maj_coord_cell_t) {
-                    .row = i,
-                    .col = j,
+                    .row = i, 
+                    .col = j, 
                     .value = CELL(input, i, j)
                 };
             }
@@ -248,14 +258,16 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
     size_t col = 0;
 
     while (row < result->m && col < result->n) {
+        // previous iteration left no nonzeros -> we're done
         if (buf_prev->len == 0) {
             break;
         }
 
+        // search for row with earlies nonzero cell
         size_t pivot_row_start = 0;
         size_t pivot_row = buf_prev->values[0].row;
         size_t max_pivot_col = buf_prev->values[0].col;
-        
+
         if (max_pivot_col != col) {
             for (size_t i = 0; i < buf_prev->len; i++) {
                 if (buf_prev->values[i].col < max_pivot_col) {
@@ -271,39 +283,63 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
         }
         col = max_pivot_col;
 
+        // write pivot to result matrix
         size_t result_pivot_start = result->len;
         size_t pivot_cell_idx = pivot_row_start;
         while (pivot_cell_idx < buf_prev->len && buf_prev->values[pivot_cell_idx].row == pivot_row) {
             result->values[result->len++] = buf_prev->values[pivot_cell_idx++];
         }
 
+        // program iteration order
+        size_t idx = 0;
+        size_t curr = 0;
+        size_t first_row = 0;
+        while (curr < buf_prev->len && buf_prev->values[curr].row == row) {
+            buf_prev->values[curr].row = pivot_row;
+            first_row++;
+            curr++;
+        }
+        while (curr < buf_prev->len) {
+            if (buf_prev->values[curr].row == pivot_row) {
+                for (size_t i = 0; i < first_row; i++) {
+                    iter_order[idx++] = i;
+                }
+                while (curr < buf_prev->len && buf_prev->values[curr].row == pivot_row) {
+                    curr++;
+                }
+            }
+            else {
+                iter_order[idx++] = curr++;
+            }
+        }
+
+        printf("new\n");
+        for (size_t i = 0; i < idx; i++) {
+            printf("ord: %zu\n", iter_order[i]);
+        }
+
         buf_curr->len = 0;
-        size_t prev_row = -1;
+        long long prev_row = -1;
         size_t result_pivot_idx;
         float coeff;
 
-        for (size_t i = 0; i < buf_prev->len; i++) {
-            row_maj_coord_cell_t *buf_cell = &buf_prev->values[i];
-
-            if (pivot_row == buf_cell->row) {
-                continue;
-            }
+        // the secret sauce - pivot and "previous iteration" buffer merging
+        for (size_t i = 0; i < idx; i++) {
+            row_maj_coord_cell_t *buf_cell = &buf_prev->values[iter_order[i]];
             if (prev_row != buf_cell->row) {
                 if (buf_cell->col == col) {
                     result_pivot_idx = result_pivot_start + 1;
                     prev_row = buf_cell->row;
                     coeff = buf_cell->value / result->values[result_pivot_start].value;
-                }
-                else {
+                } else {
                     buf_curr->values[buf_curr->len++] = *buf_cell;
                 }
-            }
-            else {
+            } else {
                 while (result_pivot_idx < result->len && result->values[result_pivot_idx].col < buf_cell->col) {
                     row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx++];
                     buf_curr->values[buf_curr->len++] = (row_maj_coord_cell_t) {
-                        .row = buf_cell->row,
-                        .col = pivot_cell->col,
+                        .row = buf_cell->row, 
+                        .col = pivot_cell->col, 
                         .value = .0f - (pivot_cell->value * coeff)
                     };
                     result_pivot_idx++;
@@ -313,13 +349,12 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
                     float result = buf_cell->value - pivot_cell->value * coeff;
                     if (result != .0f) {
                         buf_curr->values[buf_curr->len++] = (row_maj_coord_cell_t) {
-                            .row = buf_cell->row,
-                            .col = buf_cell->col,
+                            .row = buf_cell->row, 
+                            .col = buf_cell->col, 
                             .value = result
                         };
                     }
-                }
-                else {
+                } else {
                     buf_curr->values[buf_curr->len++] = *buf_cell;
                 }
             }
@@ -333,7 +368,12 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
         buf_curr = tmp;
     }
 
+    printf("%ld\n", clock() - measurement_begin);
+
     *out_result = result;
+    free(buf_prev);
+    free(buf_curr);
+    free(iter_order);
 
     return 0;
 }
