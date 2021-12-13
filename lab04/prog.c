@@ -52,7 +52,7 @@ row_maj_coord_buf_t *make_row_maj_coord_buf(size_t max_len) {
         return NULL;
     }
 
-    result->len = max_len;
+    result->len = 0;
     return result;
 }
 
@@ -220,24 +220,22 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
 
     // result, in a given moment, will contain only rows up to n-th row
     row_maj_coord_matrix_t *result = make_row_maj_coord_matrix(input->m, input->n, max_nonzero_cell_count);
-    // every buf designates a rectangle left to eliminate
+    // every buf designates a submatrix left to eliminate
     row_maj_coord_buf_t *buf_prev = make_row_maj_coord_buf(input->m * input->n);
     row_maj_coord_buf_t *buf_curr = make_row_maj_coord_buf(input->m * input->n);
 
-    size_t *iter_order = malloc(input->m * input->n * sizeof(*iter_order));
+    size_t *elimination_order = malloc(input->m * input->n * sizeof(*elimination_order));
 
-    if (!result || !buf_prev || !buf_curr || !iter_order) {
+    if (!result || !buf_prev || !buf_curr || !elimination_order) {
         free(result);
         free(buf_prev);
         free(buf_curr);
-        free(iter_order);
+        free(elimination_order);
         return -ENOMEM;
     }
 
     result->m = input->m;
     result->n = input->n;
-    buf_prev->len = 0;
-    buf_curr->len = 0;
 
     clock_t measurement_begin = clock();
 
@@ -263,54 +261,63 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
             break;
         }
 
-        // search for row with earlies nonzero cell
-        size_t pivot_row_start = 0;
+        size_t pivot_start_idx = 0;
         size_t pivot_row = buf_prev->values[0].row;
-        size_t max_pivot_col = buf_prev->values[0].col;
+        size_t lowest_col = buf_prev->values[0].col;
 
-        if (max_pivot_col != col) {
+        // search for row with earliest nonzero cell
+        if (lowest_col != col) {
             for (size_t i = 0; i < buf_prev->len; i++) {
-                if (buf_prev->values[i].col < max_pivot_col) {
-                    pivot_row_start = i;
+                if (buf_prev->values[i].col < lowest_col) {
+                    pivot_start_idx = i;
                     pivot_row = buf_prev->values[i].row;
-                    max_pivot_col = buf_prev->values[i].col;
+                    lowest_col = buf_prev->values[i].col;
 
-                    if (max_pivot_col == col) {
+                    if (lowest_col == col) {
                         break;
                     }
                 }
             }
         }
-        col = max_pivot_col;
+        col = lowest_col;
 
         // write pivot to result matrix
         size_t result_pivot_start = result->len;
-        size_t pivot_cell_idx = pivot_row_start;
+        size_t pivot_cell_idx = pivot_start_idx;
         while (pivot_cell_idx < buf_prev->len && buf_prev->values[pivot_cell_idx].row == pivot_row) {
-            result->values[result->len] = buf_prev->values[pivot_cell_idx++];
-            result->values[result->len++].row = row;
+            result->values[result->len] = buf_prev->values[pivot_cell_idx];
+
+            // we might select other pivot than the first row, so change row number
+            result->values[result->len].row = row;
+
+            pivot_cell_idx++;
+            result->len++;
         }
 
-        // program iteration order
-        size_t idx = 0;
-        size_t curr = 0;
-        size_t first_row = 0;
-        while (curr < buf_prev->len && buf_prev->values[curr].row == row) {
-            buf_prev->values[curr].row = pivot_row;
-            first_row++;
-            curr++;
+        // program elimination/iteration order
+        size_t to_eliminate = 0;
+        size_t curr_cell = 0;
+        size_t firt_row_len = 0;
+
+        // measure length of first row and change its row number to "swap" it with pivot
+        while (curr_cell < buf_prev->len && buf_prev->values[curr_cell].row == row) {
+            buf_prev->values[curr_cell].row = pivot_row;
+            firt_row_len++;
+            curr_cell++;
         }
-        while (curr < buf_prev->len) {
-            if (buf_prev->values[curr].row == pivot_row) {
-                for (size_t i = 0; i < first_row; i++) {
-                    iter_order[idx++] = i;
+
+        while (curr_cell < buf_prev->len) {
+            // if we happen to find pivoting row, skip it, and iterate over the first row instead
+            if (buf_prev->values[curr_cell].row == pivot_row) {
+                for (size_t i = 0; i < firt_row_len; i++) {
+                    elimination_order[to_eliminate++] = i;
                 }
-                while (curr < buf_prev->len && buf_prev->values[curr].row == pivot_row) {
-                    curr++;
+                while (curr_cell < buf_prev->len && buf_prev->values[curr_cell].row == pivot_row) {
+                    curr_cell++;
                 }
             }
             else {
-                iter_order[idx++] = curr++;
+                elimination_order[to_eliminate++] = curr_cell++;
             }
         }
 
@@ -320,17 +327,23 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
         float coeff;
 
         // the secret sauce - pivot and "previous iteration" buffer merging
-        for (size_t i = 0; i < idx; i++) {
-            row_maj_coord_cell_t *buf_cell = &buf_prev->values[iter_order[i]];
+        for (size_t i = 0; i < to_eliminate; i++) {
+            row_maj_coord_cell_t *buf_cell = &buf_prev->values[elimination_order[i]];
+
+            // we're looking at a new row
             if (prev_row != buf_cell->row) {
                 if (buf_cell->col == col) {
+                    // if first element is nonzero, start elimination
                     result_pivot_idx = result_pivot_start + 1;
                     prev_row = buf_cell->row;
                     coeff = buf_cell->value / result->values[result_pivot_start].value;
                 } else {
+                    // else no subtraction is carried, just rewrite the row
                     buf_curr->values[buf_curr->len++] = *buf_cell;
                 }
             } else {
+
+                // there's no cells to subtract from: add cells from pivot, advance it until buf_cell->col matches
                 while (result_pivot_idx < result->len && result->values[result_pivot_idx].col < buf_cell->col) {
                     row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx];
                     buf_curr->values[buf_curr->len++] = (row_maj_coord_cell_t) {
@@ -340,7 +353,10 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
                     };
                     result_pivot_idx++;
                 }
+
                 if (result_pivot_idx < result->len && result->values[result_pivot_idx].col == buf_cell->col) {
+                    // if row and col numbers match, do the subtraction
+
                     row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx++];
                     float result = buf_cell->value - pivot_cell->value * coeff;
                     if (result != .0f) {
@@ -351,9 +367,12 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
                         };
                     }
                 } else {
+                    // else no subtraction is done: rewrite cell
                     buf_curr->values[buf_curr->len++] = *buf_cell;
                 }
-                if (i + 1 == idx || buf_prev->values[iter_order[i+1]].row != buf_cell->row) {
+
+                // if next cell has other row number, we must "subtract" the remainder of pivot
+                if (i + 1 == to_eliminate || buf_prev->values[elimination_order[i + 1]].row != buf_cell->row) {
                     while (result_pivot_idx < result->len) {
                         row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx];
                         buf_curr->values[buf_curr->len++] = (row_maj_coord_cell_t) {
@@ -381,7 +400,7 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
     *out_result = result;
     free(buf_prev);
     free(buf_curr);
-    free(iter_order);
+    free(elimination_order);
 
     return 0;
 }
