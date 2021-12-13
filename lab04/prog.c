@@ -314,11 +314,6 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
             }
         }
 
-        printf("new\n");
-        for (size_t i = 0; i < idx; i++) {
-            printf("ord: %zu\n", iter_order[i]);
-        }
-
         buf_curr->len = 0;
         long long prev_row = -1;
         size_t result_pivot_idx;
