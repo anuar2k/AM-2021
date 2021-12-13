@@ -187,6 +187,62 @@ int dense_gauss(const dense_matrix_t *input, dense_matrix_t **out_result) {
         // subtract pivot row scaled by coeff
         float nonzero = CELL(result, row, col);
         for (size_t clear_row = row + 1; clear_row < result->m; clear_row++) {
+            float coeff = CELL(result, clear_row, col) / nonzero;
+
+            CELL(result, clear_row, col) = .0f;
+            for (size_t clear_col = col + 1; clear_col < result->n; clear_col++) {
+                CELL(result, clear_row, clear_col) -= coeff * CELL(result, row, clear_col);
+            }
+        }
+
+        row++;
+        col++;
+    }
+out:
+
+    printf("%ld\n", clock() - measurement_begin);
+
+    *out_result = result;
+    return 0;
+}
+
+int dense_skip_gauss(const dense_matrix_t *input, dense_matrix_t **out_result) {
+    dense_matrix_t *result = copy_dense_matrix(input);
+    if (!result) {
+        return -ENOMEM;
+    }
+
+    clock_t measurement_begin = clock();
+
+    size_t row = 0;
+    size_t col = 0;
+
+    while (row < result->m && col < result->n) {
+        size_t pivot_row = row;
+
+        // find row with earliest nonzero cell
+        while (CELL(result, pivot_row, col) == .0f) {
+            if (++pivot_row == result->m) {
+                pivot_row = row;
+
+                if (++col == result->n) {
+                    goto out;
+                }
+            }
+        }
+
+        // do a swap if neccessary
+        if (pivot_row != row) {
+            for (size_t swap_col = col; swap_col < result->n; swap_col++) {
+                float tmp = CELL(result, row, swap_col);
+                CELL(result, row, swap_col) = CELL(result, pivot_row, swap_col);
+                CELL(result, pivot_row, swap_col) = tmp;
+            }
+        }
+
+        // subtract pivot row scaled by coeff
+        float nonzero = CELL(result, row, col);
+        for (size_t clear_row = row + 1; clear_row < result->m; clear_row++) {
             if (CELL(result, clear_row, col) != .0f) {
                 float coeff = CELL(result, clear_row, col) / nonzero;
 
@@ -435,7 +491,13 @@ int main(int argc, char **argv) {
         if (dense_gauss(input, &output_dense)) {
             goto cleanup;
         }
-    } else if (!strcmp(type, "coord")) {
+    }
+    else if (!strcmp(type, "dense_skip")) {
+        if (dense_skip_gauss(input, &output_dense)) {
+            goto cleanup;
+        }
+    }
+    else if (!strcmp(type, "coord")) {
         if (coord_gauss(input, &output_coord)) {
             goto cleanup;
         }

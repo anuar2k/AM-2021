@@ -62,6 +62,10 @@ if __name__ == "__main__":
 
     time1, result1 = calc(input, "dense")
     time2, result2 = calc(input, "coord")
+    time3, result3 = calc(input, "dense_skip")
     print(time1, result1)
     print(time2, result2)
+    print(time3, result3)
     print(np.array_equal(result1, result2))
+    print(np.array_equal(result2, result3))
+    print(np.array_equal(result1, result3))
