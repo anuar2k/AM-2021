@@ -272,7 +272,7 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
             for (size_t i = 0; i < buf_prev->len; i++) {
                 if (buf_prev->values[i].col < max_pivot_col) {
                     pivot_row_start = i;
-                    pivot_row = row;
+                    pivot_row = buf_prev->values[i].row;
                     max_pivot_col = buf_prev->values[i].col;
 
                     if (max_pivot_col == col) {
@@ -287,7 +287,8 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
         size_t result_pivot_start = result->len;
         size_t pivot_cell_idx = pivot_row_start;
         while (pivot_cell_idx < buf_prev->len && buf_prev->values[pivot_cell_idx].row == pivot_row) {
-            result->values[result->len++] = buf_prev->values[pivot_cell_idx++];
+            result->values[result->len] = buf_prev->values[pivot_cell_idx++];
+            result->values[result->len++].row = row;
         }
 
         // program iteration order
@@ -336,7 +337,7 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
                 }
             } else {
                 while (result_pivot_idx < result->len && result->values[result_pivot_idx].col < buf_cell->col) {
-                    row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx++];
+                    row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx];
                     buf_curr->values[buf_curr->len++] = (row_maj_coord_cell_t) {
                         .row = buf_cell->row, 
                         .col = pivot_cell->col, 
@@ -357,6 +358,18 @@ int coord_gauss(const dense_matrix_t *input, row_maj_coord_matrix_t **out_result
                 } else {
                     buf_curr->values[buf_curr->len++] = *buf_cell;
                 }
+                if (i + 1 == idx || buf_prev->values[iter_order[i+1]].row != buf_cell->row) {
+                    while (result_pivot_idx < result->len) {
+                        row_maj_coord_cell_t *pivot_cell = &result->values[result_pivot_idx];
+                        buf_curr->values[buf_curr->len++] = (row_maj_coord_cell_t) {
+                            .row = buf_cell->row, 
+                            .col = pivot_cell->col, 
+                            .value = .0f - (pivot_cell->value * coeff)
+                        };
+                        result_pivot_idx++;
+                    }
+                }
+                
             }
         }
 
