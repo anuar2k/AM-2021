@@ -1,0 +1,13 @@
+,matrix,method,avg_time_calc
+0,0,dense,0.007
+1,0,coord,0.0175
+2,0,dense_skip,0.001
+3,1,dense,0.0555
+4,1,coord,0.0995
+5,1,dense_skip,0.008
+6,2,dense,1.7045
+7,2,coord,0.74
+8,2,dense_skip,0.1045
+9,3,dense,8.15
+10,3,coord,2.619
+11,3,dense_skip,0.3515
